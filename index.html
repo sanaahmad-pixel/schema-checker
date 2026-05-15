@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Schema Checker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f7f5;
+      --surface: #ffffff;
+      --border: #e4e4e0;
+      --text: #1a1a1a;
+      --text-muted: #6b6b6b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --green: #16a34a;
+      --green-bg: #f0fdf4;
+      --green-border: #bbf7d0;
+      --yellow: #b45309;
+      --yellow-bg: #fffbeb;
+      --yellow-border: #fde68a;
+      --red: #dc2626;
+      --red-bg: #fff1f2;
+      --red-border: #fecdd3;
+      --radius: 10px;
+      --shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 0 16px 64px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 64px 0 48px;
+    }
+
+    header .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    header .logo svg {
+      width: 36px;
+      height: 36px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+
+    header p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* ── Search bar ── */
+    .search-wrap {
+      max-width: 680px;
+      margin: 0 auto 40px;
+    }
+
+    .search-box {
+      display: flex;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+
+    .search-box:focus-within {
+      border-color: var(--accent);
+    }
+
+    .search-box input {
+      flex: 1;
+      padding: 16px 18px;
+      font-size: 1rem;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      min-width: 0;
+    }
+
+    .search-box input::placeholder {
+      color: #adadad;
+    }
+
+    .search-box button {
+      padding: 0 26px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .search-box button:hover { background: var(--accent-hover); }
+    .search-box button:disabled { background: #93b4f5; cursor: not-allowed; }
+
+    /* ── Results container ── */
+    #results {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    /* ── Loading states ── */
+    .loading-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 40px 0;
+      align-items: center;
+    }
+
+    .loading-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.4s, transform 0.4s;
+    }
+
+    .loading-step.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .loading-step.done { color: var(--green); }
+    .loading-step .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid #d1d5db;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Score card ── */
+    .score-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .score-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .score-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--text);
+    }
+
+    .score-value span {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .score-bar-wrap {
+      flex: 1;
+      max-width: 260px;
+    }
+
+    .score-bar-track {
+      height: 8px;
+      background: #e9e9e6;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      border-radius: 99px;
+      width: 0;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .score-bar-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .score-url {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    /* ── Section ── */
+    .section {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: #fafaf9;
+    }
+
+    .section-header h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .section-count {
+      margin-left: auto;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: #ebebeb;
+      color: var(--text-muted);
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+
+    /* ── Schema items ── */
+    .schema-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .schema-item:last-child { border-bottom: none; }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 99px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .badge-green {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-border);
+    }
+
+    .badge-yellow {
+      background: var(--yellow-bg);
+      color: var(--yellow);
+      border: 1px solid var(--yellow-border);
+    }
+
+    .badge-red {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red-border);
+    }
+
+    .item-body { flex: 1; min-width: 0; }
+
+    .item-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+
+    .item-desc {
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state svg {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 16px;
+      opacity: 0.3;
+    }
+
+    .empty-state h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #8a8a8a;
+      margin-bottom: 6px;
+    }
+
+    .empty-state p {
+      font-size: 0.88rem;
+    }
+
+    /* ── Animations ── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: fadeIn 0.35s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in:nth-child(1) { animation-delay: 0s; }
+    .fade-in:nth-child(2) { animation-delay: 0.07s; }
+    .fade-in:nth-child(3) { animation-delay: 0.14s; }
+    .fade-in:nth-child(4) { animation-delay: 0.21s; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="36" height="36" rx="9" fill="#2563eb"/>
+        <path d="M10 13h6M10 18h10M10 23h7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="27" cy="13" r="4" fill="#fff" opacity="0.9"/>
+        <path d="M25.5 13l1 1 2-2" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1>Schema Checker</h1>
+    </div>
+    <p>Audit your schema markup in seconds.</p>
+  </header>
+
+  <div class="search-wrap">
+    <div class="search-box">
+      <input
+        id="urlInput"
+        type="url"
+        placeholder="https://example.com"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="scanBtn" onclick="startScan()">Scan Page</button>
+    </div>
+  </div>
+
+  <div id="results">
+    <div class="empty-state">
+      <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6" y="6" width="40" height="40" rx="8" stroke="currentColor" stroke-width="2.5"/>
+        <path d="M14 18h10M14 26h16M14 34h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="38" cy="18" r="5" stroke="currentColor" stroke-width="2.5"/>
+      </svg>
+      <h3>No results yet</h3>
+      <p>Enter a URL above and click Scan Page to audit its schema markup.</p>
+    </div>
+  </div>
+
+  <script>
+    const MOCK_RESULTS = {
+      score: 72,
+      correct: [
+        {
+          name: "Organization",
+          desc: "Name, URL, logo, and social profiles are all present and valid."
+        },
+        {
+          name: "BreadcrumbList",
+          desc: "Breadcrumb trail is properly structured with at least two list items."
+        },
+        {
+          name: "WebSite",
+          desc: "Site-level schema with SearchAction is correctly implemented."
+        }
+      ],
+      errors: [
+        {
+          name: "Product",
+          desc: "Missing required <code>priceCurrency</code> field — Google requires an ISO 4217 currency code."
+        },
+        {
+          name: "Review",
+          desc: "<code>reviewRating</code> is present but <code>ratingValue</code> is a string instead of a number."
+        }
+      ],
+      missing: [
+        {
+          name: "FAQPage",
+          desc: "No FAQPage schema found — recommended for this page type to capture rich FAQ snippets."
+        },
+        {
+          name: "LocalBusiness",
+          desc: "Address and phone details detected in HTML but no LocalBusiness schema is present."
+        }
+      ]
+    };
+
+    const LOADING_STEPS = [
+      "Fetching page...",
+      "Extracting schema...",
+      "Analyzing markup..."
+    ];
+
+    function startScan() {
+      const input = document.getElementById("urlInput");
+      const url = input.value.trim();
+
+      if (!url) {
+        input.focus();
+        input.style.outline = "2px solid #ef4444";
+        setTimeout(() => { input.style.outline = ""; }, 1200);
+        return;
+      }
+
+      const btn = document.getElementById("scanBtn");
+      btn.disabled = true;
+      showLoading();
+    }
+
+    function showLoading() {
+      const results = document.getElementById("results");
+
+      results.innerHTML = `<div class="loading-steps">${
+        LOADING_STEPS.map((s, i) => `
+          <div class="loading-step" id="step${i}">
+            <div class="spinner"></div>
+            <span>${s}</span>
+          </div>
+        `).join("")
+      }</div>`;
+
+      let current = 0;
+
+      const showStep = () => {
+        if (current < LOADING_STEPS.length) {
+          const step = document.getElementById(`step${current}`);
+          step.classList.add("visible");
+          current++;
+          setTimeout(showStep, 900);
+        } else {
+          setTimeout(showResults, 600);
+        }
+      };
+
+      setTimeout(showStep, 200);
+    }
+
+    function showResults() {
+      const url = document.getElementById("urlInput").value.trim();
+      const r = MOCK_RESULTS;
+      const results = document.getElementById("results");
+
+      results.innerHTML = `
+        <div class="score-card fade-in">
+          <div>
+            <div class="score-label">Schema Health</div>
+            <div class="score-value">${r.score}<span> / 100</span></div>
+            <div class="score-url">${escHtml(url)}</div>
+          </div>
+          <div class="score-bar-wrap">
+            <div class="score-bar-track">
+              <div class="score-bar-fill" id="scoreBar"></div>
+            </div>
+            <div class="score-bar-label">${r.correct.length} correct &nbsp;·&nbsp; ${r.errors.length} errors &nbsp;·&nbsp; ${r.missing.length} missing</div>
+          </div>
+        </div>
+
+        ${section("✅", "Implemented Correctly", r.correct, "green")}
+        ${section("⚠️", "Has Errors", r.errors, "yellow")}
+        ${section("❌", "Missing", r.missing, "red")}
+      `;
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const bar = document.getElementById("scoreBar");
+          if (bar) bar.style.width = r.score + "%";
+        });
+      });
+
+      document.getElementById("scanBtn").disabled = false;
+    }
+
+    function section(icon, title, items, color) {
+      const rows = items.map(item => `
+        <div class="schema-item">
+          <span class="badge badge-${color}">${item.name}</span>
+          <div class="item-body">
+            <div class="item-desc">${item.desc}</div>
+          </div>
+        </div>
+      `).join("");
+
+      return `
+        <div class="section fade-in">
+          <div class="section-header">
+            <span>${icon}</span>
+            <h2>${title}</h2>
+            <span class="section-count">${items.length}</span>
+          </div>
+          ${rows}
+        </div>
+      `;
+    }
+
+    function escHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    document.getElementById("urlInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") startScan();
+    });
+  </script>
+
+</body>
+</html>
