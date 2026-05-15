@@ -24,6 +24,9 @@
       --red: #dc2626;
       --red-bg: #fff1f2;
       --red-border: #fecdd3;
+      --gray: #4b5563;
+      --gray-bg: #f3f4f6;
+      --gray-border: #d1d5db;
       --radius: 10px;
       --shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.06);
     }
@@ -49,16 +52,12 @@
       margin-bottom: 16px;
     }
 
-    header .logo svg {
-      width: 36px;
-      height: 36px;
-    }
+    header .logo svg { width: 36px; height: 36px; }
 
     header h1 {
       font-size: 2rem;
       font-weight: 700;
       letter-spacing: -0.5px;
-      color: var(--text);
     }
 
     header p {
@@ -83,9 +82,7 @@
       transition: border-color 0.15s;
     }
 
-    .search-box:focus-within {
-      border-color: var(--accent);
-    }
+    .search-box:focus-within { border-color: var(--accent); }
 
     .search-box input {
       flex: 1;
@@ -98,9 +95,7 @@
       min-width: 0;
     }
 
-    .search-box input::placeholder {
-      color: #adadad;
-    }
+    .search-box input::placeholder { color: #adadad; }
 
     .search-box button {
       padding: 0 26px;
@@ -117,13 +112,10 @@
     .search-box button:hover { background: var(--accent-hover); }
     .search-box button:disabled { background: #93b4f5; cursor: not-allowed; }
 
-    /* ── Results container ── */
-    #results {
-      max-width: 680px;
-      margin: 0 auto;
-    }
+    /* ── Results ── */
+    #results { max-width: 680px; margin: 0 auto; }
 
-    /* ── Loading states ── */
+    /* ── Loading ── */
     .loading-steps {
       display: flex;
       flex-direction: column;
@@ -143,13 +135,10 @@
       transition: opacity 0.4s, transform 0.4s;
     }
 
-    .loading-step.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
+    .loading-step.visible { opacity: 1; transform: translateY(0); }
     .loading-step.done { color: var(--green); }
-    .loading-step .spinner {
+
+    .spinner {
       width: 16px; height: 16px;
       border: 2px solid #d1d5db;
       border-top-color: var(--accent);
@@ -172,10 +161,11 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      flex-wrap: wrap;
     }
 
     .score-label {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--text-muted);
@@ -184,22 +174,25 @@
     }
 
     .score-value {
-      font-size: 2.2rem;
+      font-size: 2rem;
       font-weight: 800;
       letter-spacing: -1px;
-      color: var(--text);
     }
 
     .score-value span {
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 500;
       color: var(--text-muted);
     }
 
-    .score-bar-wrap {
-      flex: 1;
-      max-width: 260px;
+    .score-meta {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      word-break: break-all;
     }
+
+    .score-bar-wrap { flex: 1; min-width: 160px; max-width: 280px; }
 
     .score-bar-track {
       height: 8px;
@@ -222,13 +215,26 @@
       margin-top: 6px;
     }
 
-    .score-url {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      word-break: break-all;
+    /* ── Page meta ── */
+    .page-meta {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+      font-size: 0.85rem;
     }
 
-    /* ── Section ── */
+    .page-meta-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .page-meta-desc { color: var(--text-muted); line-height: 1.5; }
+
+    /* ── Sections ── */
     .section {
       background: var(--surface);
       border: 1.5px solid var(--border);
@@ -242,19 +248,16 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 16px 20px;
+      padding: 14px 20px;
       border-bottom: 1px solid var(--border);
       background: #fafaf9;
     }
 
-    .section-header h2 {
-      font-size: 0.95rem;
-      font-weight: 600;
-    }
+    .section-header h2 { font-size: 0.93rem; font-weight: 600; }
 
     .section-count {
       margin-left: auto;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: 600;
       background: #ebebeb;
       color: var(--text-muted);
@@ -264,59 +267,100 @@
 
     /* ── Schema items ── */
     .schema-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      padding: 16px 20px;
       border-bottom: 1px solid var(--border);
     }
 
     .schema-item:last-child { border-bottom: none; }
 
+    .schema-item-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .schema-item-header:hover { background: #fafaf9; }
+
     .badge {
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       font-weight: 700;
-      padding: 3px 10px;
+      padding: 3px 9px;
       border-radius: 99px;
       white-space: nowrap;
       flex-shrink: 0;
       margin-top: 1px;
     }
 
-    .badge-green {
-      background: var(--green-bg);
-      color: var(--green);
-      border: 1px solid var(--green-border);
-    }
-
-    .badge-yellow {
-      background: var(--yellow-bg);
-      color: var(--yellow);
-      border: 1px solid var(--yellow-border);
-    }
-
-    .badge-red {
-      background: var(--red-bg);
-      color: var(--red);
-      border: 1px solid var(--red-border);
-    }
+    .badge-green  { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+    .badge-yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+    .badge-gray   { background: var(--gray-bg);   color: var(--gray);   border: 1px solid var(--gray-border); }
 
     .item-body { flex: 1; min-width: 0; }
 
     .item-title {
-      font-size: 0.92rem;
+      font-size: 0.9rem;
       font-weight: 600;
       color: var(--text);
-      margin-bottom: 3px;
+      margin-bottom: 2px;
     }
 
-    .item-desc {
-      font-size: 0.83rem;
+    .item-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+
+    .expand-icon {
+      font-size: 0.75rem;
       color: var(--text-muted);
-      line-height: 1.5;
+      margin-top: 3px;
+      flex-shrink: 0;
+      transition: transform 0.2s;
     }
 
-    /* ── Empty state ── */
+    .expand-icon.open { transform: rotate(180deg); }
+
+    /* ── JSON drawer ── */
+    .json-drawer {
+      display: none;
+      border-top: 1px solid var(--border);
+      background: #fafaf9;
+    }
+
+    .json-drawer.open { display: block; }
+
+    .json-drawer pre {
+      padding: 14px 20px;
+      font-size: 0.76rem;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #374151;
+      font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+    }
+
+    /* ── Error item (no expand) ── */
+    .error-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .error-item:last-child { border-bottom: none; }
+
+    /* ── Placeholder item ── */
+    .placeholder-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .placeholder-item:last-child { border-bottom: none; }
+
+    /* ── Empty / error states ── */
     .empty-state {
       text-align: center;
       padding: 80px 20px;
@@ -324,8 +368,7 @@
     }
 
     .empty-state svg {
-      width: 52px;
-      height: 52px;
+      width: 52px; height: 52px;
       margin: 0 auto 16px;
       opacity: 0.3;
     }
@@ -337,8 +380,18 @@
       margin-bottom: 6px;
     }
 
-    .empty-state p {
-      font-size: 0.88rem;
+    .empty-state p { font-size: 0.88rem; }
+
+    .error-banner {
+      background: var(--red-bg);
+      border: 1.5px solid var(--red-border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      color: var(--red);
+      font-size: 0.9rem;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
     }
 
     /* ── Animations ── */
@@ -348,14 +401,13 @@
       animation: fadeIn 0.35s ease forwards;
     }
 
-    @keyframes fadeIn {
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
 
-    .fade-in:nth-child(1) { animation-delay: 0s; }
-    .fade-in:nth-child(2) { animation-delay: 0.07s; }
-    .fade-in:nth-child(3) { animation-delay: 0.14s; }
-    .fade-in:nth-child(4) { animation-delay: 0.21s; }
+    .fade-in:nth-child(1) { animation-delay: 0.00s; }
+    .fade-in:nth-child(2) { animation-delay: 0.06s; }
+    .fade-in:nth-child(3) { animation-delay: 0.12s; }
+    .fade-in:nth-child(4) { animation-delay: 0.18s; }
+    .fade-in:nth-child(5) { animation-delay: 0.24s; }
   </style>
 </head>
 <body>
@@ -399,51 +451,43 @@
   </div>
 
   <script>
-    const MOCK_RESULTS = {
-      score: 72,
-      correct: [
-        {
-          name: "Organization",
-          desc: "Name, URL, logo, and social profiles are all present and valid."
-        },
-        {
-          name: "BreadcrumbList",
-          desc: "Breadcrumb trail is properly structured with at least two list items."
-        },
-        {
-          name: "WebSite",
-          desc: "Site-level schema with SearchAction is correctly implemented."
-        }
-      ],
-      errors: [
-        {
-          name: "Product",
-          desc: "Missing required <code>priceCurrency</code> field — Google requires an ISO 4217 currency code."
-        },
-        {
-          name: "Review",
-          desc: "<code>reviewRating</code> is present but <code>ratingValue</code> is a string instead of a number."
-        }
-      ],
-      missing: [
-        {
-          name: "FAQPage",
-          desc: "No FAQPage schema found — recommended for this page type to capture rich FAQ snippets."
-        },
-        {
-          name: "LocalBusiness",
-          desc: "Address and phone details detected in HTML but no LocalBusiness schema is present."
-        }
-      ]
-    };
-
     const LOADING_STEPS = [
       "Fetching page...",
       "Extracting schema...",
       "Analyzing markup..."
     ];
 
-    function startScan() {
+    // ── Descriptions for known schema @types ──
+    const TYPE_DESCRIPTIONS = {
+      Organization:      "Describes the site's business identity — name, logo, and contact info.",
+      WebSite:           "Site-level metadata, often includes a SearchAction for sitelinks search box.",
+      WebPage:           "Metadata about this specific page.",
+      BreadcrumbList:    "Navigation breadcrumb trail enabling rich results in Google.",
+      Product:           "A product listing with pricing, availability, and review data.",
+      Review:            "A user or editorial review associated with a product or entity.",
+      AggregateRating:   "Aggregated star rating compiled from individual reviews.",
+      FAQPage:           "Frequently-asked questions — eligible for FAQ rich results.",
+      HowTo:             "Step-by-step instructions eligible for HowTo rich results.",
+      Article:           "News or blog article with author, publish date, and body content.",
+      NewsArticle:       "A news article eligible for Top Stories rich results.",
+      BlogPosting:       "A blog post with author and publication metadata.",
+      Person:            "An individual — commonly used for author markup.",
+      LocalBusiness:     "A physical business location with address, hours, and contact details.",
+      Event:             "A scheduled event with date, location, and ticket information.",
+      VideoObject:       "Video metadata — name, description, thumbnail, and upload date.",
+      ImageObject:       "Image with caption, dimensions, and licensing info.",
+      SiteLinksSearchBox:"Enables a search box directly in Google's sitelinks.",
+      ItemList:          "An ordered or unordered list of items.",
+      ListItem:          "A single item within an ItemList.",
+    };
+
+    function describeType(type) {
+      if (!type || type === "Unknown") return "Unrecognized schema type — check the @type field.";
+      return TYPE_DESCRIPTIONS[type] || `${type} schema detected on this page.`;
+    }
+
+    // ── Main scan ──
+    async function startScan() {
       const input = document.getElementById("urlInput");
       const url = input.value.trim();
 
@@ -456,96 +500,217 @@
 
       const btn = document.getElementById("scanBtn");
       btn.disabled = true;
-      showLoading();
+
+      let stepInterval;
+      showLoading((cleanup) => { stepInterval = cleanup; });
+
+      try {
+        const res = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+
+        const data = await res.json();
+        if (stepInterval) clearInterval(stepInterval);
+        showResults(data);
+      } catch (err) {
+        if (stepInterval) clearInterval(stepInterval);
+        showError("Network error: couldn't reach the server. Is it running?");
+      } finally {
+        btn.disabled = false;
+      }
     }
 
-    function showLoading() {
+    // ── Loading animation ──
+    function showLoading(onReady) {
       const results = document.getElementById("results");
 
       results.innerHTML = `<div class="loading-steps">${
-        LOADING_STEPS.map((s, i) => `
-          <div class="loading-step" id="step${i}">
+        LOADING_STEPS.map((s, i) =>
+          `<div class="loading-step" id="step${i}">
             <div class="spinner"></div>
             <span>${s}</span>
-          </div>
-        `).join("")
+          </div>`
+        ).join("")
       }</div>`;
 
       let current = 0;
-
-      const showStep = () => {
+      const tick = () => {
         if (current < LOADING_STEPS.length) {
-          const step = document.getElementById(`step${current}`);
-          step.classList.add("visible");
+          document.getElementById(`step${current}`)?.classList.add("visible");
           current++;
-          setTimeout(showStep, 900);
-        } else {
-          setTimeout(showResults, 600);
         }
       };
-
-      setTimeout(showStep, 200);
+      tick();
+      const id = setInterval(tick, 800);
+      onReady(id);
     }
 
-    function showResults() {
-      const url = document.getElementById("urlInput").value.trim();
-      const r = MOCK_RESULTS;
+    // ── Results renderer ──
+    function showResults(data) {
+      if (data.error) {
+        showError(data.error);
+        return;
+      }
+
+      const { url, pageTitle, metaDescription, schemas, parseErrors } = data;
+      const total = schemas.length + parseErrors.length;
+      const score = total === 0 ? 0 : Math.round((schemas.length / total) * 100);
+      const scoreLabel = total === 0
+        ? "No schemas found"
+        : `Found ${schemas.length} valid schema${schemas.length !== 1 ? "s" : ""}${parseErrors.length ? `, ${parseErrors.length} with errors` : ""}`;
+
       const results = document.getElementById("results");
 
       results.innerHTML = `
-        <div class="score-card fade-in">
-          <div>
-            <div class="score-label">Schema Health</div>
-            <div class="score-value">${r.score}<span> / 100</span></div>
-            <div class="score-url">${escHtml(url)}</div>
-          </div>
-          <div class="score-bar-wrap">
-            <div class="score-bar-track">
-              <div class="score-bar-fill" id="scoreBar"></div>
-            </div>
-            <div class="score-bar-label">${r.correct.length} correct &nbsp;·&nbsp; ${r.errors.length} errors &nbsp;·&nbsp; ${r.missing.length} missing</div>
-          </div>
-        </div>
-
-        ${section("✅", "Implemented Correctly", r.correct, "green")}
-        ${section("⚠️", "Has Errors", r.errors, "yellow")}
-        ${section("❌", "Missing", r.missing, "red")}
+        ${scoreCard(score, scoreLabel, url, schemas.length, parseErrors.length)}
+        ${(pageTitle || metaDescription) ? pageMeta(pageTitle, metaDescription) : ""}
+        ${schemasSection(schemas)}
+        ${errorsSection(parseErrors)}
+        ${missingSection()}
       `;
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const bar = document.getElementById("scoreBar");
-          if (bar) bar.style.width = r.score + "%";
+          if (bar) bar.style.width = (total === 0 ? 0 : score) + "%";
         });
       });
-
-      document.getElementById("scanBtn").disabled = false;
     }
 
-    function section(icon, title, items, color) {
-      const rows = items.map(item => `
-        <div class="schema-item">
-          <span class="badge badge-${color}">${item.name}</span>
-          <div class="item-body">
-            <div class="item-desc">${item.desc}</div>
-          </div>
-        </div>
-      `).join("");
-
+    function scoreCard(score, label, url, validCount, errCount) {
       return `
-        <div class="section fade-in">
-          <div class="section-header">
-            <span>${icon}</span>
-            <h2>${title}</h2>
-            <span class="section-count">${items.length}</span>
+        <div class="score-card fade-in">
+          <div>
+            <div class="score-label">Schema Health</div>
+            <div class="score-value">${validCount}<span> schema${validCount !== 1 ? "s" : ""} found</span></div>
+            <div class="score-meta">${esc(url)}</div>
           </div>
-          ${rows}
+          <div class="score-bar-wrap">
+            <div class="score-bar-track">
+              <div class="score-bar-fill" id="scoreBar"></div>
+            </div>
+            <div class="score-bar-label">${label}</div>
+          </div>
         </div>
       `;
     }
 
-    function escHtml(str) {
-      return str
+    function pageMeta(title, desc) {
+      return `
+        <div class="page-meta fade-in">
+          ${title ? `<div class="page-meta-title">${esc(title)}</div>` : ""}
+          ${desc  ? `<div class="page-meta-desc">${esc(desc)}</div>` : ""}
+        </div>
+      `;
+    }
+
+    function schemasSection(schemas) {
+      const count = schemas.length;
+      const inner = count === 0
+        ? `<div class="placeholder-item"><div class="item-body"><div class="item-desc">No valid schema markup was found on this page.</div></div></div>`
+        : schemas.map((s, i) => schemaItem(s, i)).join("");
+
+      return `
+        <div class="section fade-in">
+          <div class="section-header">
+            <span>✅</span>
+            <h2>Implemented Correctly</h2>
+            <span class="section-count">${count}</span>
+          </div>
+          ${inner}
+        </div>
+      `;
+    }
+
+    function schemaItem(s, idx) {
+      const id = `schema-${idx}`;
+      const type = Array.isArray(s.type) ? s.type.join(", ") : (s.type || "Unknown");
+      const json = JSON.stringify(s.json, null, 2);
+
+      return `
+        <div class="schema-item">
+          <div class="schema-item-header" onclick="toggleDrawer('${id}')">
+            <span class="badge badge-green">${esc(type)}</span>
+            <div class="item-body">
+              <div class="item-desc">${esc(describeType(type))}</div>
+            </div>
+            <span class="expand-icon" id="${id}-icon">▼</span>
+          </div>
+          <div class="json-drawer" id="${id}">
+            <pre>${esc(json)}</pre>
+          </div>
+        </div>
+      `;
+    }
+
+    function errorsSection(parseErrors) {
+      const count = parseErrors.length;
+      const inner = count === 0
+        ? `<div class="error-item"><div class="item-body"><div class="item-desc">No JSON-LD parse errors detected.</div></div></div>`
+        : parseErrors.map((e) => `
+            <div class="error-item">
+              <span class="badge badge-yellow">Parse Error</span>
+              <div class="item-body">
+                <div class="item-title">Malformed JSON-LD block</div>
+                <div class="item-desc">${esc(e.error)}</div>
+              </div>
+            </div>
+          `).join("");
+
+      return `
+        <div class="section fade-in">
+          <div class="section-header">
+            <span>⚠️</span>
+            <h2>Has Errors</h2>
+            <span class="section-count">${count}</span>
+          </div>
+          ${inner}
+        </div>
+      `;
+    }
+
+    function missingSection() {
+      return `
+        <div class="section fade-in">
+          <div class="section-header">
+            <span>❌</span>
+            <h2>Missing</h2>
+            <span class="section-count">–</span>
+          </div>
+          <div class="placeholder-item">
+            <span class="badge badge-gray">Coming soon</span>
+            <div class="item-body">
+              <div class="item-desc">Smart analysis — detecting missing schemas based on page type and content — is coming in the next step.</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function showError(msg) {
+      document.getElementById("results").innerHTML = `
+        <div class="error-banner fade-in">
+          <span>⚠️</span>
+          <span>Couldn't fetch the page: ${esc(msg)}</span>
+        </div>
+      `;
+    }
+
+    // ── Expand/collapse JSON drawer ──
+    function toggleDrawer(id) {
+      const drawer = document.getElementById(id);
+      const icon   = document.getElementById(id + "-icon");
+      if (!drawer) return;
+      drawer.classList.toggle("open");
+      icon?.classList.toggle("open");
+    }
+
+    // ── Utils ──
+    function esc(str) {
+      if (str == null) return "";
+      return String(str)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
