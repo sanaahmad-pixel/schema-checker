@@ -28,11 +28,23 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
+// ── Playwright singleton ──────────────────────────────────────────────────
+
+let _browser = null;
+
+async function getBrowser() {
+  if (!_browser) {
+    const { chromium } = require("playwright");
+    _browser = await chromium.launch({ headless: true });
+  }
+  return _browser;
+}
+
 // ── Shared helpers ────────────────────────────────────────────────────────
 
 function validateUrl(raw) {
   if (!raw || typeof raw !== "string") throw new Error("A URL is required.");
-  const parsed = new URL(raw); // throws on invalid
+  const parsed = new URL(raw);
   if (!["http:", "https:"].includes(parsed.protocol)) {
     throw new Error("URL must use http or https.");
   }
@@ -57,23 +69,31 @@ function friendlyFetchError(err) {
   return `Fetch failed: ${err.message}`;
 }
 
-function extractSchemas($) {
+function parseSchemasFromScripts(scripts) {
   const schemas = [];
   const parseErrors = [];
-  $('script[type="application/ld+json"]').each((_, el) => {
-    const raw = $(el).html()?.trim() || "";
-    if (!raw) return;
+  for (const raw of scripts) {
+    const text = raw?.trim();
+    if (!text) continue;
     try {
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(text);
       const items = Array.isArray(parsed) ? parsed : [parsed];
       for (const item of items) {
-        schemas.push({ type: item["@type"] || "Unknown", json: item, raw });
+        schemas.push({ type: item["@type"] || "Unknown", json: item, raw: text });
       }
     } catch (err) {
-      parseErrors.push({ raw, error: err.message });
+      parseErrors.push({ raw: text, error: err.message });
     }
-  });
+  }
   return { schemas, parseErrors };
+}
+
+function extractSchemas($) {
+  const scripts = [];
+  $('script[type="application/ld+json"]').each((_, el) => {
+    scripts.push($(el).html());
+  });
+  return parseSchemasFromScripts(scripts);
 }
 
 function extractMeta($) {
@@ -86,6 +106,77 @@ function extractMeta($) {
   };
 }
 
+async function fetchAndExtractSchemas(url) {
+  // Fast path: axios + cheerio
+  let html;
+  try {
+    html = await fetchHtml(url);
+  } catch (err) {
+    // If static fetch fails completely, try Playwright before giving up
+    return await fetchWithPlaywright(url, err);
+  }
+
+  const $ = cheerio.load(html);
+  const { pageTitle, metaDescription } = extractMeta($);
+  const { schemas, parseErrors } = extractSchemas($);
+
+  if (schemas.length > 0 || parseErrors.length > 0) {
+    return { schemas, parseErrors, pageTitle, metaDescription, fetchMethod: "static" };
+  }
+
+  // Zero schemas and zero parse errors — fall back to Playwright
+  console.log(`[Playwright fallback] No schemas found via static fetch for: ${url}`);
+  return await fetchWithPlaywright(url, null, { pageTitle, metaDescription });
+}
+
+async function fetchWithPlaywright(url, originalError, staticMeta = {}) {
+  let browser;
+  try {
+    browser = await getBrowser();
+  } catch (err) {
+    // Can't launch browser — surface original error if we have one
+    if (originalError) throw originalError;
+    return { schemas: [], parseErrors: [], pageTitle: staticMeta.pageTitle || null, metaDescription: staticMeta.metaDescription || null, fetchMethod: "static" };
+  }
+
+  let page;
+  try {
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    });
+    page = await context.newPage();
+
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+
+    // Wait briefly for network to settle (JS schema injection happens after DOMContentLoaded)
+    try {
+      await page.waitForLoadState("networkidle", { timeout: 5000 });
+    } catch {
+      // networkidle timeout is non-fatal — proceed with what we have
+    }
+
+    const scripts = await page.$$eval(
+      'script[type="application/ld+json"]',
+      (els) => els.map((el) => el.textContent)
+    );
+
+    const pageTitle = await page.title().catch(() => staticMeta.pageTitle || null);
+    const metaDescription = await page
+      .$eval('meta[name="description"]', (el) => el.getAttribute("content"))
+      .catch(() => staticMeta.metaDescription || null);
+
+    await context.close();
+
+    const { schemas, parseErrors } = parseSchemasFromScripts(scripts);
+    return { schemas, parseErrors, pageTitle, metaDescription, fetchMethod: "rendered" };
+  } catch (err) {
+    if (page) await page.context().close().catch(() => {});
+    if (originalError) throw originalError;
+    throw err;
+  }
+}
+
 // ── POST /api/scan — single page ──────────────────────────────────────────
 
 app.post("/api/scan", async (req, res) => {
@@ -96,18 +187,12 @@ app.post("/api/scan", async (req, res) => {
     return res.status(400).json({ error: e.message });
   }
 
-  let html;
   try {
-    html = await fetchHtml(parsedUrl.href);
+    const result = await fetchAndExtractSchemas(parsedUrl.href);
+    return res.json({ url: parsedUrl.href, ...result, totalSchemas: result.schemas.length });
   } catch (err) {
     return res.status(200).json({ error: friendlyFetchError(err) });
   }
-
-  const $ = cheerio.load(html);
-  const { pageTitle, metaDescription } = extractMeta($);
-  const { schemas, parseErrors } = extractSchemas($);
-
-  return res.json({ url: parsedUrl.href, pageTitle, metaDescription, schemas, parseErrors, totalSchemas: schemas.length });
 });
 
 // ── Site-scan helpers ─────────────────────────────────────────────────────
@@ -208,7 +293,9 @@ app.post("/api/scan-site", async (req, res) => {
     return res.status(400).json({ error: e.message });
   }
 
+  // Fetch homepage via smart path to discover internal links
   let homepageHtml;
+  let homepageResult;
   try {
     homepageHtml = await fetchHtml(parsedUrl.href);
   } catch (err) {
@@ -231,13 +318,10 @@ app.post("/api/scan-site", async (req, res) => {
 
   const tasks = toScan.map((page) => async () => {
     try {
-      const html = page.key === "homepage" ? homepageHtml : await fetchHtml(page.url);
-      const $ = cheerio.load(html);
-      const { pageTitle, metaDescription } = extractMeta($);
-      const { schemas, parseErrors } = extractSchemas($);
-      return { category: page.label, url: page.url, pageTitle, metaDescription, schemas, parseErrors };
+      const result = await fetchAndExtractSchemas(page.url);
+      return { category: page.label, url: page.url, ...result };
     } catch (err) {
-      return { category: page.label, url: page.url, error: friendlyFetchError(err), schemas: [], parseErrors: [] };
+      return { category: page.label, url: page.url, error: friendlyFetchError(err), schemas: [], parseErrors: [], fetchMethod: "static" };
     }
   });
 

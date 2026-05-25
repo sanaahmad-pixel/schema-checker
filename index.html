@@ -539,6 +539,31 @@
     .not-found-item:last-child { border-bottom: none; padding-bottom: 0; }
     .not-found-item:first-child { padding-top: 0; }
 
+    /* ── Fetch-method badges ── */
+    .fetch-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 99px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .fetch-badge-static {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+
+    .fetch-badge-rendered {
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+
     /* ── Animations ── */
     .fade-in {
       opacity: 0;
@@ -751,7 +776,7 @@
     function showPageResults(data) {
       if (data.error) { showError(data.error); return; }
 
-      const { url, pageTitle, metaDescription, schemas, parseErrors } = data;
+      const { url, pageTitle, metaDescription, schemas, parseErrors, fetchMethod } = data;
       const total = schemas.length + parseErrors.length;
       const score = total === 0 ? 0 : Math.round((schemas.length / total) * 100);
       const scoreLabel = total === 0
@@ -760,7 +785,7 @@
 
       const el = document.getElementById("results");
       el.innerHTML = `
-        ${singleScoreCard(schemas.length, scoreLabel, url)}
+        ${singleScoreCard(schemas.length, scoreLabel, url, fetchMethod)}
         ${(pageTitle || metaDescription) ? pageMeta(pageTitle, metaDescription) : ""}
         ${schemasSection(schemas, "s")}
         ${errorsSection(parseErrors, "s")}
@@ -770,13 +795,14 @@
       animateBar("scoreBar", score);
     }
 
-    function singleScoreCard(validCount, label, url) {
+    function singleScoreCard(validCount, label, url, fetchMethod) {
       return `
         <div class="score-card fade-in">
           <div>
             <div class="score-label">Schema Health</div>
             <div class="score-value">${validCount}<span> schema${validCount !== 1 ? "s" : ""} found</span></div>
             <div class="score-meta">${esc(url)}</div>
+            ${fetchMethod ? fetchMethodBadge(fetchMethod) : ""}
           </div>
           <div class="score-bar-wrap">
             <div class="score-bar-track"><div class="score-bar-fill" id="scoreBar"></div></div>
@@ -844,6 +870,7 @@
             <div class="page-card-url-text">${esc(page.url)}</div>
           </div>
           <div class="page-card-right">
+            ${page.fetchMethod ? fetchMethodBadge(page.fetchMethod) : ""}
             ${hasError
               ? `<span class="count-pill count-pill-yellow">Error</span>`
               : `<span class="count-pill count-pill-green">${validCount} valid</span>
@@ -954,6 +981,13 @@
             </div>
           </div>
         </div>`;
+    }
+
+    function fetchMethodBadge(method) {
+      if (method === "rendered") {
+        return `<span class="fetch-badge fetch-badge-rendered">🌐 JS-Rendered</span>`;
+      }
+      return `<span class="fetch-badge fetch-badge-static">⚡ Static HTML</span>`;
     }
 
     function showError(msg) {
