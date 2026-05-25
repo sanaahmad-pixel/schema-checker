@@ -1,8 +1,11 @@
+require("dotenv").config();
+
 const express = require("express");
 const axios = require("axios");
 const cheerio = require("cheerio");
 const cors = require("cors");
 const path = require("path");
+const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
 const PORT = 3000;
@@ -38,6 +41,17 @@ async function getBrowser() {
     _browser = await chromium.launch({ headless: true });
   }
   return _browser;
+}
+
+// ── Claude client ─────────────────────────────────────────────────────────
+
+let _claude = null;
+
+function getClaudeClient() {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || key === "your_key_here") return null;
+  if (!_claude) _claude = new Anthropic({ apiKey: key });
+  return _claude;
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────
@@ -107,12 +121,10 @@ function extractMeta($) {
 }
 
 async function fetchAndExtractSchemas(url) {
-  // Fast path: axios + cheerio
   let html;
   try {
     html = await fetchHtml(url);
   } catch (err) {
-    // If static fetch fails completely, try Playwright before giving up
     return await fetchWithPlaywright(url, err);
   }
 
@@ -124,7 +136,6 @@ async function fetchAndExtractSchemas(url) {
     return { schemas, parseErrors, pageTitle, metaDescription, fetchMethod: "static" };
   }
 
-  // Zero schemas and zero parse errors — fall back to Playwright
   console.log(`[Playwright fallback] No schemas found via static fetch for: ${url}`);
   return await fetchWithPlaywright(url, null, { pageTitle, metaDescription });
 }
@@ -134,7 +145,6 @@ async function fetchWithPlaywright(url, originalError, staticMeta = {}) {
   try {
     browser = await getBrowser();
   } catch (err) {
-    // Can't launch browser — surface original error if we have one
     if (originalError) throw originalError;
     return { schemas: [], parseErrors: [], pageTitle: staticMeta.pageTitle || null, metaDescription: staticMeta.metaDescription || null, fetchMethod: "static" };
   }
@@ -149,11 +159,10 @@ async function fetchWithPlaywright(url, originalError, staticMeta = {}) {
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
 
-    // Wait briefly for network to settle (JS schema injection happens after DOMContentLoaded)
     try {
       await page.waitForLoadState("networkidle", { timeout: 5000 });
     } catch {
-      // networkidle timeout is non-fatal — proceed with what we have
+      // non-fatal — proceed with what we have
     }
 
     const scripts = await page.$$eval(
@@ -177,6 +186,90 @@ async function fetchWithPlaywright(url, originalError, staticMeta = {}) {
   }
 }
 
+// ── Claude AI analysis ────────────────────────────────────────────────────
+
+const ANALYSIS_SYSTEM_PROMPT = `You are a senior SEO specialist with deep expertise in Schema.org structured data and the travel industry. Analyze web pages against best practices and provide actionable, specific recommendations. Reference Schema.org standard types and their required/recommended fields. Output valid JSON only, no prose around it.`;
+
+async function analyzeWithClaude(pageData) {
+  const client = getClaudeClient();
+  if (!client) {
+    return { error: "Claude API not configured — add ANTHROPIC_API_KEY to .env file." };
+  }
+
+  const { url, pageTitle, metaDescription, schemas, parseErrors } = pageData;
+
+  const userMessage = `Analyze this web page's schema markup and provide SEO recommendations.
+
+URL: ${url}
+Page Title: ${pageTitle || "(none)"}
+Meta Description: ${metaDescription || "(none)"}
+
+Schemas Found (${schemas.length}):
+${schemas.length > 0
+  ? schemas.map((s, i) => `${i + 1}. @type: ${s.type}\n${JSON.stringify(s.json, null, 2)}`).join("\n\n")
+  : "(none)"}
+
+Parse Errors (${parseErrors.length}):
+${parseErrors.length > 0
+  ? parseErrors.map((e, i) => `${i + 1}. ${e.error}\nRaw: ${e.raw.substring(0, 200)}`).join("\n\n")
+  : "(none)"}
+
+Return JSON matching exactly this structure:
+{
+  "pageType": "string (e.g., 'Tour Detail Page', 'Homepage', 'Contact Page', 'Destination Listing')",
+  "pageTypeConfidence": "high|medium|low",
+  "existingSchemaAnalysis": [
+    {
+      "schemaType": "string",
+      "status": "valid|has_issues|invalid",
+      "issues": ["specific issues"],
+      "notes": "additional context"
+    }
+  ],
+  "missingSchemas": [
+    {
+      "schemaType": "string",
+      "priority": "high|medium|low",
+      "reason": "why this schema fits this page type",
+      "recommendedFields": ["important fields to include"]
+    }
+  ],
+  "overallScore": 0,
+  "summary": "one-paragraph executive summary"
+}`;
+
+  try {
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2000,
+      system: ANALYSIS_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    const text = message.content[0]?.text?.trim() || "";
+    // Strip markdown code fences if present
+    const jsonText = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+    try {
+      return JSON.parse(jsonText);
+    } catch {
+      return {
+        error: "Claude returned unparseable JSON.",
+        pageType: "Unknown",
+        pageTypeConfidence: "low",
+        existingSchemaAnalysis: [],
+        missingSchemas: [],
+        overallScore: null,
+        summary: text.substring(0, 500),
+      };
+    }
+  } catch (err) {
+    if (err.status === 401) return { error: "Claude API key is invalid. Check ANTHROPIC_API_KEY in .env." };
+    if (err.status === 429) return { error: "Claude API rate limit reached. Try again in a moment." };
+    return { error: `Claude API error: ${err.message}` };
+  }
+}
+
 // ── POST /api/scan — single page ──────────────────────────────────────────
 
 app.post("/api/scan", async (req, res) => {
@@ -189,7 +282,14 @@ app.post("/api/scan", async (req, res) => {
 
   try {
     const result = await fetchAndExtractSchemas(parsedUrl.href);
-    return res.json({ url: parsedUrl.href, ...result, totalSchemas: result.schemas.length });
+    const analysis = await analyzeWithClaude({
+      url: parsedUrl.href,
+      pageTitle: result.pageTitle,
+      metaDescription: result.metaDescription,
+      schemas: result.schemas,
+      parseErrors: result.parseErrors,
+    });
+    return res.json({ url: parsedUrl.href, ...result, totalSchemas: result.schemas.length, analysis });
   } catch (err) {
     return res.status(200).json({ error: friendlyFetchError(err) });
   }
@@ -293,9 +393,7 @@ app.post("/api/scan-site", async (req, res) => {
     return res.status(400).json({ error: e.message });
   }
 
-  // Fetch homepage via smart path to discover internal links
   let homepageHtml;
-  let homepageResult;
   try {
     homepageHtml = await fetchHtml(parsedUrl.href);
   } catch (err) {
@@ -316,7 +414,8 @@ app.post("/api/scan-site", async (req, res) => {
 
   const categoriesNotFound = ALL_CATEGORIES.filter((c) => c.key !== "homepage" && !candidateMap[c.key]).map((c) => c.label);
 
-  const tasks = toScan.map((page) => async () => {
+  // Fetch and extract schemas for all pages (concurrency 5)
+  const fetchTasks = toScan.map((page) => async () => {
     try {
       const result = await fetchAndExtractSchemas(page.url);
       return { category: page.label, url: page.url, ...result };
@@ -325,12 +424,43 @@ app.post("/api/scan-site", async (req, res) => {
     }
   });
 
-  const discoveredPages = await runWithConcurrency(tasks, 5);
+  const fetchedPages = await runWithConcurrency(fetchTasks, 5);
+
+  // AI analysis for all pages (concurrency 3)
+  const analysisTasks = fetchedPages.map((page) => async () => {
+    if (page.error) return null;
+    return analyzeWithClaude({
+      url: page.url,
+      pageTitle: page.pageTitle,
+      metaDescription: page.metaDescription,
+      schemas: page.schemas || [],
+      parseErrors: page.parseErrors || [],
+    });
+  });
+
+  const analyses = await runWithConcurrency(analysisTasks, 3);
+
+  const discoveredPages = fetchedPages.map((page, i) => ({ ...page, analysis: analyses[i] }));
 
   const totalSchemasFound = discoveredPages.reduce((a, p) => a + (p.schemas?.length || 0), 0);
   const totalParseErrors = discoveredPages.reduce((a, p) => a + (p.parseErrors?.length || 0), 0);
 
-  return res.json({ siteUrl: parsedUrl.href, discoveredPages, categoriesNotFound, totalSchemasFound, totalParseErrors });
+  // Use AI scores when available, fall back to schema-count-based score
+  const aiScores = discoveredPages
+    .map((p) => p.analysis?.overallScore)
+    .filter((s) => typeof s === "number");
+  const averageAiScore = aiScores.length > 0
+    ? Math.round(aiScores.reduce((a, b) => a + b, 0) / aiScores.length)
+    : null;
+
+  return res.json({
+    siteUrl: parsedUrl.href,
+    discoveredPages,
+    categoriesNotFound,
+    totalSchemasFound,
+    totalParseErrors,
+    averageAiScore,
+  });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────

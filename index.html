@@ -339,6 +339,7 @@
 
     .badge-green  { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
     .badge-yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+    .badge-red    { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
     .badge-gray   { background: var(--gray-bg);   color: var(--gray);   border: 1px solid var(--gray-border); }
 
     .item-body { flex: 1; min-width: 0; }
@@ -539,6 +540,139 @@
     .not-found-item:last-child { border-bottom: none; padding-bottom: 0; }
     .not-found-item:first-child { padding-top: 0; }
 
+    /* ── AI analysis panel ── */
+    .ai-summary {
+      background: linear-gradient(135deg, #fef4f8 0%, #fff8fb 100%);
+      border: 1.5px solid var(--accent-border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
+      font-size: 0.85rem;
+      line-height: 1.65;
+      color: var(--text);
+    }
+
+    .ai-summary-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .page-type-line {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .confidence-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .conf-high   { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+    .conf-medium { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+    .conf-low    { background: var(--gray-bg);   color: var(--gray);   border: 1px solid var(--gray-border); }
+
+    .ai-score-pill {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 99px;
+      flex-shrink: 0;
+    }
+
+    .score-high   { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+    .score-medium { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+    .score-low    { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+
+    .schema-issues {
+      margin-top: 6px;
+      padding-left: 12px;
+      border-left: 2px solid var(--yellow-border);
+    }
+
+    .schema-issue-item {
+      font-size: 0.78rem;
+      color: var(--yellow);
+      line-height: 1.5;
+      padding: 2px 0;
+    }
+
+    .missing-item {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .missing-item:last-child { border-bottom: none; }
+
+    .missing-item-body { flex: 1; min-width: 0; }
+
+    .missing-item-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .missing-item-reason {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 6px;
+    }
+
+    .field-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .field-tag {
+      font-size: 0.68rem;
+      font-weight: 600;
+      background: var(--gray-bg);
+      color: var(--gray);
+      border: 1px solid var(--gray-border);
+      padding: 1px 7px;
+      border-radius: 99px;
+      font-family: "Fira Code", Consolas, monospace;
+    }
+
+    .priority-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .pri-high   { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+    .pri-medium { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+    .pri-low    { background: var(--gray-bg);   color: var(--gray);   border: 1px solid var(--gray-border); }
+
+    .ai-unavailable {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 10px 20px;
+    }
+
     /* ── Fetch-method badges ── */
     .fetch-badge {
       display: inline-flex;
@@ -636,15 +770,16 @@
 
     const PAGE_LOADING_STEPS = [
       "Fetching page...",
-      "Extracting schema...",
-      "Analyzing markup...",
+      "Extracting schema markup...",
+      "Analyzing with AI...",
+      "Generating recommendations...",
     ];
 
     const SITE_LOADING_STEPS = [
       "Discovering internal pages...",
       "Fetching discovered pages...",
-      "Extracting schema from each page...",
-      "Analyzing results across site...",
+      "Extracting schema markup...",
+      "Analyzing with AI...",
     ];
 
     const TYPE_DESCRIPTIONS = {
@@ -776,31 +911,37 @@
     function showPageResults(data) {
       if (data.error) { showError(data.error); return; }
 
-      const { url, pageTitle, metaDescription, schemas, parseErrors, fetchMethod } = data;
-      const total = schemas.length + parseErrors.length;
-      const score = total === 0 ? 0 : Math.round((schemas.length / total) * 100);
-      const scoreLabel = total === 0
-        ? "No schemas found"
-        : `${schemas.length} valid schema${schemas.length !== 1 ? "s" : ""}${parseErrors.length ? `, ${parseErrors.length} with errors` : ""}`;
+      const { url, pageTitle, metaDescription, schemas, parseErrors, fetchMethod, analysis } = data;
+      const displayScore = typeof analysis?.overallScore === "number" ? analysis.overallScore : null;
+      const schemaCount = schemas.length + parseErrors.length;
+      const fallbackScore = schemaCount === 0 ? 0 : Math.round((schemas.length / schemaCount) * 100);
+      const barScore = displayScore !== null ? displayScore : fallbackScore;
+      const scoreLabel = displayScore !== null
+        ? `AI score: ${displayScore}/100`
+        : (schemaCount === 0
+          ? "No schemas found"
+          : `${schemas.length} valid${parseErrors.length ? `, ${parseErrors.length} with errors` : ""}`);
 
       const el = document.getElementById("results");
       el.innerHTML = `
-        ${singleScoreCard(schemas.length, scoreLabel, url, fetchMethod)}
+        ${singleScoreCard(schemas.length, scoreLabel, url, fetchMethod, analysis)}
         ${(pageTitle || metaDescription) ? pageMeta(pageTitle, metaDescription) : ""}
-        ${schemasSection(schemas, "s")}
+        ${analysis && !analysis.error ? aiSummaryPanel(analysis) : ""}
+        ${schemasSection(schemas, "s", analysis)}
         ${errorsSection(parseErrors, "s")}
-        ${missingSection()}
+        ${missingSection(analysis)}
       `;
 
-      animateBar("scoreBar", score);
+      animateBar("scoreBar", barScore);
     }
 
-    function singleScoreCard(validCount, label, url, fetchMethod) {
+    function singleScoreCard(validCount, label, url, fetchMethod, analysis) {
+      const score = typeof analysis?.overallScore === "number" ? analysis.overallScore : null;
       return `
         <div class="score-card fade-in">
           <div>
             <div class="score-label">Schema Health</div>
-            <div class="score-value">${validCount}<span> schema${validCount !== 1 ? "s" : ""} found</span></div>
+            <div class="score-value">${score !== null ? score : validCount}<span>${score !== null ? " / 100" : ` schema${validCount !== 1 ? "s" : ""} found`}</span></div>
             <div class="score-meta">${esc(url)}</div>
             ${fetchMethod ? fetchMethodBadge(fetchMethod) : ""}
           </div>
@@ -823,28 +964,32 @@
     function showSiteResults(data) {
       if (data.error) { showError(data.error); return; }
 
-      const { siteUrl, discoveredPages, categoriesNotFound, totalSchemasFound, totalParseErrors } = data;
+      const { siteUrl, discoveredPages, categoriesNotFound, totalSchemasFound, totalParseErrors, averageAiScore } = data;
       const total = totalSchemasFound + totalParseErrors;
-      const score = total === 0 ? 0 : Math.round((totalSchemasFound / total) * 100);
-      const label = total === 0 ? "No schemas found" :
-        `${totalSchemasFound} valid schema${totalSchemasFound !== 1 ? "s" : ""}${totalParseErrors ? `, ${totalParseErrors} with errors` : ""} across ${discoveredPages.length} page${discoveredPages.length !== 1 ? "s" : ""}`;
+      const fallbackScore = total === 0 ? 0 : Math.round((totalSchemasFound / total) * 100);
+      const barScore = averageAiScore !== null && averageAiScore !== undefined ? averageAiScore : fallbackScore;
+      const label = averageAiScore !== null && averageAiScore !== undefined
+        ? `Average AI score: ${averageAiScore}/100 across ${discoveredPages.length} page${discoveredPages.length !== 1 ? "s" : ""}`
+        : (total === 0 ? "No schemas found" : `${totalSchemasFound} valid${totalParseErrors ? `, ${totalParseErrors} with errors` : ""} across ${discoveredPages.length} page${discoveredPages.length !== 1 ? "s" : ""}`);
 
       const el = document.getElementById("results");
       el.innerHTML = `
-        ${siteScoreCard(totalSchemasFound, label, siteUrl, discoveredPages.length)}
+        ${siteScoreCard(averageAiScore, totalSchemasFound, label, siteUrl, discoveredPages.length)}
         ${discoveredPages.map((p, i) => pageCard(p, i, i === 0)).join("")}
         ${categoriesNotFound.length > 0 ? notFoundSection(categoriesNotFound) : ""}
       `;
 
-      animateBar("scoreBar", score);
+      animateBar("scoreBar", barScore);
     }
 
-    function siteScoreCard(validCount, label, siteUrl, pageCount) {
+    function siteScoreCard(aiScore, schemaCount, label, siteUrl, pageCount) {
+      const displayVal = aiScore !== null && aiScore !== undefined ? aiScore : schemaCount;
+      const displaySuffix = aiScore !== null && aiScore !== undefined ? " / 100" : ` schema${schemaCount !== 1 ? "s" : ""} found`;
       return `
         <div class="score-card fade-in">
           <div>
             <div class="score-label">Site Schema Health</div>
-            <div class="score-value">${validCount}<span> schema${validCount !== 1 ? "s" : ""} found</span></div>
+            <div class="score-value">${displayVal}<span>${displaySuffix}</span></div>
             <div class="score-meta">${esc(siteUrl)}</div>
             <div class="pages-badge">📄 ${pageCount} page${pageCount !== 1 ? "s" : ""} scanned</div>
           </div>
@@ -861,6 +1006,8 @@
       const validCount = page.schemas?.length || 0;
       const errCount = page.parseErrors?.length || 0;
       const hasError = !!page.error;
+      const analysis = page.analysis || null;
+      const aiScore = typeof analysis?.overallScore === "number" ? analysis.overallScore : null;
 
       const header = `
         <div class="page-card-header" onclick="togglePageCard('${bodyId}')">
@@ -868,9 +1015,13 @@
             <div class="page-category-tag">${esc(page.category)}</div>
             <div class="page-card-title-text">${esc(page.pageTitle || page.url)}</div>
             <div class="page-card-url-text">${esc(page.url)}</div>
+            ${analysis && !analysis.error && analysis.pageType
+              ? `<div class="page-type-line">Detected: <strong>${esc(analysis.pageType)}</strong> <span class="confidence-tag conf-${analysis.pageTypeConfidence || "low"}">${esc(analysis.pageTypeConfidence || "low")}</span></div>`
+              : ""}
           </div>
           <div class="page-card-right">
             ${page.fetchMethod ? fetchMethodBadge(page.fetchMethod) : ""}
+            ${aiScore !== null ? `<span class="ai-score-pill ${aiScoreClass(aiScore)}">${aiScore}/100</span>` : ""}
             ${hasError
               ? `<span class="count-pill count-pill-yellow">Error</span>`
               : `<span class="count-pill count-pill-green">${validCount} valid</span>
@@ -889,9 +1040,10 @@
       } else {
         body = `
           <div class="page-card-body${expanded ? " open" : ""}" id="${bodyId}">
-            ${schemasSection(page.schemas || [], ns)}
+            ${analysis && !analysis.error && analysis.summary ? aiSummaryPanel(analysis) : ""}
+            ${schemasSection(page.schemas || [], ns, analysis)}
             ${errorsSection(page.parseErrors || [], ns)}
-            ${missingSection()}
+            ${missingSection(analysis)}
           </div>`;
       }
 
@@ -911,10 +1063,10 @@
     }
 
     // ── Shared section renderers ───────────────────────────────────────────
-    function schemasSection(schemas, ns) {
+    function schemasSection(schemas, ns, analysis) {
       const inner = schemas.length === 0
         ? `<div class="placeholder-item"><div class="item-body"><div class="item-desc">No valid schema markup was found on this page.</div></div></div>`
-        : schemas.map((s, i) => schemaItem(s, i, ns)).join("");
+        : schemas.map((s, i) => schemaItem(s, i, ns, analysis)).join("");
 
       return `
         <div class="section">
@@ -926,16 +1078,33 @@
         </div>`;
     }
 
-    function schemaItem(s, idx, ns) {
+    function schemaItem(s, idx, ns, analysis) {
       const id = `${ns}-schema-${idx}`;
       const type = Array.isArray(s.type) ? s.type.join(", ") : (s.type || "Unknown");
       const json = JSON.stringify(s.json, null, 2);
+
+      // Find matching AI analysis for this schema type
+      const aiInfo = analysis?.existingSchemaAnalysis?.find(
+        (a) => a.schemaType?.toLowerCase() === type.toLowerCase()
+      );
+      const badgeClass = aiInfo?.status === "has_issues" ? "badge-yellow"
+        : aiInfo?.status === "invalid" ? "badge-red"
+        : "badge-green";
+
+      const issuesHtml = aiInfo?.issues?.length
+        ? `<div class="schema-issues">${aiInfo.issues.map(i => `<div class="schema-issue-item">• ${esc(i)}</div>`).join("")}</div>`
+        : "";
+      const notesHtml = aiInfo?.notes && !aiInfo.issues?.length
+        ? `<div class="item-desc" style="margin-top:4px;font-size:0.78rem;">${esc(aiInfo.notes)}</div>`
+        : "";
+
       return `
         <div class="schema-item">
           <div class="schema-item-header" onclick="toggleDrawer('${id}')">
-            <span class="badge badge-green">${esc(type)}</span>
+            <span class="badge ${badgeClass}">${esc(type)}</span>
             <div class="item-body">
               <div class="item-desc">${esc(describeType(type))}</div>
+              ${issuesHtml}${notesHtml}
             </div>
             <span class="expand-icon" id="${id}-icon">▼</span>
           </div>
@@ -967,20 +1136,59 @@
         </div>`;
     }
 
-    function missingSection() {
+    function missingSection(analysis) {
+      if (!analysis || analysis.error) {
+        return `
+          <div class="section">
+            <div class="section-header">
+              <span>❌</span><h2>Missing</h2>
+              <span class="section-count">–</span>
+            </div>
+            <div class="ai-unavailable">${analysis?.error ? `AI analysis unavailable: ${esc(analysis.error)}` : "AI analysis unavailable"}</div>
+          </div>`;
+      }
+
+      const missing = analysis.missingSchemas || [];
+      const inner = missing.length === 0
+        ? `<div class="placeholder-item"><div class="item-body"><div class="item-desc">This page has appropriate schema coverage for its type.</div></div></div>`
+        : missing.map(m => missingItem(m)).join("");
+
       return `
         <div class="section">
           <div class="section-header">
             <span>❌</span><h2>Missing</h2>
-            <span class="section-count">–</span>
+            <span class="section-count">${missing.length}</span>
           </div>
-          <div class="placeholder-item">
-            <span class="badge badge-gray">Coming soon</span>
-            <div class="item-body">
-              <div class="item-desc">Smart analysis — detecting missing schemas based on page type — is coming in the next step.</div>
-            </div>
+          ${inner}
+        </div>`;
+    }
+
+    function missingItem(m) {
+      const priClass = m.priority === "high" ? "pri-high" : m.priority === "medium" ? "pri-medium" : "pri-low";
+      const fields = (m.recommendedFields || []).map(f => `<span class="field-tag">${esc(f)}</span>`).join("");
+      return `
+        <div class="missing-item">
+          <span class="priority-badge ${priClass}">${esc(m.priority || "low")}</span>
+          <div class="missing-item-body">
+            <div class="missing-item-title">${esc(m.schemaType)}</div>
+            <div class="missing-item-reason">${esc(m.reason)}</div>
+            ${fields ? `<div class="field-tags">${fields}</div>` : ""}
           </div>
         </div>`;
+    }
+
+    function aiSummaryPanel(analysis) {
+      return `
+        <div class="ai-summary">
+          <div class="ai-summary-label">✦ AI Analysis</div>
+          ${esc(analysis.summary || "")}
+        </div>`;
+    }
+
+    function aiScoreClass(score) {
+      if (score >= 70) return "score-high";
+      if (score >= 40) return "score-medium";
+      return "score-low";
     }
 
     function fetchMethodBadge(method) {
