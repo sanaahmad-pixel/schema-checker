@@ -383,6 +383,141 @@ async function runWithConcurrency(tasks, limit) {
   return results;
 }
 
+// ── Sitemap discovery ─────────────────────────────────────────────────────
+
+const SKIP_PREFIXES = new Set([
+  "wp-content", "wp-admin", "cdn-cgi", "static", "assets", "images",
+  "css", "js", "api", "admin", "_next", "sites", "themes", "plugins",
+]);
+const SKIP_EXTENSIONS = /\.(pdf|jpe?g|png|gif|svg|css|js|xml|json|ico|webp|woff2?|ttf|eot)$/i;
+
+async function fetchXml(url) {
+  const response = await axios.get(url, {
+    timeout: 15000,
+    maxRedirects: 5,
+    decompress: true,
+    headers: { ...FETCH_HEADERS, Accept: "application/xml,text/xml,*/*;q=0.8" },
+    validateStatus: (s) => s < 500,
+  });
+  if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
+  return typeof response.data === "string" ? response.data : String(response.data);
+}
+
+function parseSitemapUrls(xml) {
+  const $ = cheerio.load(xml, { xmlMode: true });
+  if (xml.includes("<sitemapindex") || $("sitemapindex").length > 0) {
+    const urls = $("sitemap loc").map((_, el) => $(el).text().trim()).get().filter(Boolean);
+    return { type: "index", urls };
+  }
+  const urls = $("url loc").map((_, el) => $(el).text().trim()).get().filter(Boolean);
+  return { type: "urlset", urls };
+}
+
+async function discoverFromSitemap(origin) {
+  const candidates = [`${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`];
+
+  try {
+    const robots = await fetchXml(`${origin}/robots.txt`);
+    const match = robots.match(/^Sitemap:\s*(.+)$/im);
+    if (match) candidates.push(match[1].trim());
+  } catch { /* robots.txt unavailable */ }
+
+  for (const url of candidates) {
+    try {
+      const xml = await fetchXml(url);
+      const { type, urls } = parseSitemapUrls(xml);
+      if (type === "index" && urls.length > 0) {
+        const allLocs = [];
+        for (const childUrl of urls.slice(0, 2)) {
+          try {
+            const childXml = await fetchXml(childUrl);
+            const { urls: childLocs } = parseSitemapUrls(childXml);
+            allLocs.push(...childLocs);
+          } catch { /* skip failed child */ }
+        }
+        if (allLocs.length > 0) return { urls: allLocs, method: "sitemap" };
+      } else if (type === "urlset" && urls.length > 0) {
+        return { urls, method: "sitemap" };
+      }
+    } catch { /* try next candidate */ }
+  }
+
+  return { urls: [], method: "fallback" };
+}
+
+function generateCategoryLabel(segment) {
+  const labels = {
+    contact: "Contact Page", "contact-us": "Contact Page", "get-in-touch": "Contact Page",
+    about: "About Page", "about-us": "About Page", "who-we-are": "About Page",
+    blog: "Blog", news: "Blog", journal: "Blog", articles: "Blog",
+  };
+  return labels[segment.toLowerCase()] ||
+    segment.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function selectCategoryPages(sitemapUrls, homepageUrl) {
+  const base = new URL(homepageUrl);
+  const origin = base.origin;
+
+  const PRIORITY_PATTERNS = [
+    { key: "about",   pattern: /^\/(about|about-us|who-we-are)(\/|$)/i,               label: "About Page" },
+    { key: "contact", pattern: /^\/(contact|contact-us|get-in-touch|reach-us)(\/|$)/i, label: "Contact Page" },
+  ];
+
+  const groups = {};
+  const priorityUrls = {};
+
+  for (const raw of sitemapUrls) {
+    let u;
+    try { u = new URL(raw); } catch { continue; }
+    if (u.origin !== origin) continue;
+
+    const pathname = u.pathname;
+    if (SKIP_EXTENSIONS.test(pathname)) continue;
+    const segment = pathname.replace(/^\//, "").split("/")[0];
+    if (!segment || SKIP_PREFIXES.has(segment.toLowerCase())) continue;
+
+    for (const pp of PRIORITY_PATTERNS) {
+      if (!priorityUrls[pp.key] && pp.pattern.test(pathname)) {
+        priorityUrls[pp.key] = { url: raw, label: pp.label };
+      }
+    }
+
+    if (!groups[segment]) groups[segment] = [];
+    groups[segment].push(raw);
+  }
+
+  const result = [{ category: "Homepage", url: homepageUrl }];
+  const addedUrls = new Set([homepageUrl]);
+
+  for (const { key } of PRIORITY_PATTERNS) {
+    if (priorityUrls[key] && !addedUrls.has(priorityUrls[key].url)) {
+      result.push({ category: priorityUrls[key].label, url: priorityUrls[key].url });
+      addedUrls.add(priorityUrls[key].url);
+    }
+  }
+
+  const ranked = Object.entries(groups)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 8);
+
+  for (const [segment, urls] of ranked) {
+    if (result.length >= 12) break;
+    const descriptive = urls.filter((u) => {
+      const last = new URL(u).pathname.replace(/\/$/, "").split("/").pop() || "";
+      return !/^\d+$/.test(last) && last.length > 2;
+    });
+    const picks = (descriptive.length > 0 ? descriptive : urls).slice(0, 2);
+    for (const pick of picks) {
+      if (addedUrls.has(pick) || result.length >= 12) break;
+      addedUrls.add(pick);
+      result.push({ category: generateCategoryLabel(segment), url: pick });
+    }
+  }
+
+  return result;
+}
+
 // ── POST /api/scan-site — multi-page ─────────────────────────────────────
 
 app.post("/api/scan-site", async (req, res) => {
@@ -393,34 +528,42 @@ app.post("/api/scan-site", async (req, res) => {
     return res.status(400).json({ error: e.message });
   }
 
-  let homepageHtml;
-  try {
-    homepageHtml = await fetchHtml(parsedUrl.href);
-  } catch (err) {
-    return res.status(200).json({ error: `Couldn't fetch homepage: ${friendlyFetchError(err)}` });
+  // Try sitemap discovery first
+  const { urls: sitemapUrls } = await discoverFromSitemap(parsedUrl.origin);
+
+  let toScan;
+  let discoveryMethod;
+
+  if (sitemapUrls.length > 0) {
+    toScan = selectCategoryPages(sitemapUrls, parsedUrl.href);
+    discoveryMethod = "sitemap";
+  } else {
+    // Fall back to homepage-link discovery
+    let homepageHtml;
+    try {
+      homepageHtml = await fetchHtml(parsedUrl.href);
+    } catch (err) {
+      return res.status(200).json({ error: `Couldn't fetch homepage: ${friendlyFetchError(err)}` });
+    }
+
+    const candidateMap = discoverPages(homepageHtml, parsedUrl.href);
+    const ALL_CATEGORIES = [
+      { key: "homepage", label: "Homepage" },
+      ...CATEGORY_RULES.map((r) => ({ key: r.key, label: r.label })),
+    ];
+    toScan = ALL_CATEGORIES
+      .filter((c) => c.key === "homepage" || candidateMap[c.key])
+      .map((c) => ({ category: c.label, url: c.key === "homepage" ? parsedUrl.href : candidateMap[c.key] }));
+    discoveryMethod = "links";
   }
-
-  const candidateMap = discoverPages(homepageHtml, parsedUrl.href);
-
-  const ALL_CATEGORIES = [
-    { key: "homepage", label: "Homepage" },
-    ...CATEGORY_RULES.map((r) => ({ key: r.key, label: r.label })),
-  ];
-
-  const toScan = ALL_CATEGORIES.filter((c) => c.key === "homepage" || candidateMap[c.key]).map((c) => ({
-    ...c,
-    url: c.key === "homepage" ? parsedUrl.href : candidateMap[c.key],
-  }));
-
-  const categoriesNotFound = ALL_CATEGORIES.filter((c) => c.key !== "homepage" && !candidateMap[c.key]).map((c) => c.label);
 
   // Fetch and extract schemas for all pages (concurrency 5)
   const fetchTasks = toScan.map((page) => async () => {
     try {
       const result = await fetchAndExtractSchemas(page.url);
-      return { category: page.label, url: page.url, ...result };
+      return { category: page.category, url: page.url, ...result };
     } catch (err) {
-      return { category: page.label, url: page.url, error: friendlyFetchError(err), schemas: [], parseErrors: [], fetchMethod: "static" };
+      return { category: page.category, url: page.url, error: friendlyFetchError(err), schemas: [], parseErrors: [], fetchMethod: "static" };
     }
   });
 
@@ -445,7 +588,6 @@ app.post("/api/scan-site", async (req, res) => {
   const totalSchemasFound = discoveredPages.reduce((a, p) => a + (p.schemas?.length || 0), 0);
   const totalParseErrors = discoveredPages.reduce((a, p) => a + (p.parseErrors?.length || 0), 0);
 
-  // Use AI scores when available, fall back to schema-count-based score
   const aiScores = discoveredPages
     .map((p) => p.analysis?.overallScore)
     .filter((s) => typeof s === "number");
@@ -456,7 +598,7 @@ app.post("/api/scan-site", async (req, res) => {
   return res.json({
     siteUrl: parsedUrl.href,
     discoveredPages,
-    categoriesNotFound,
+    discoveryMethod,
     totalSchemasFound,
     totalParseErrors,
     averageAiScore,

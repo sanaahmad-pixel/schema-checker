@@ -698,6 +698,31 @@
       border: 1px solid #bbf7d0;
     }
 
+    /* ── Discovery-method badges ── */
+    .discovery-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 99px;
+      margin-top: 6px;
+      white-space: nowrap;
+    }
+
+    .discovery-badge-sitemap {
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+
+    .discovery-badge-links {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+
     /* ── Animations ── */
     .fade-in {
       opacity: 0;
@@ -776,10 +801,10 @@
     ];
 
     const SITE_LOADING_STEPS = [
-      "Discovering internal pages...",
-      "Fetching discovered pages...",
-      "Extracting schema markup...",
-      "Analyzing with AI...",
+      "Checking site structure (sitemap.xml)...",
+      "Auto-categorizing discovered pages...",
+      "Scanning pages with Playwright + Claude AI...",
+      "Generating audit recommendations...",
     ];
 
     const TYPE_DESCRIPTIONS = {
@@ -964,7 +989,7 @@
     function showSiteResults(data) {
       if (data.error) { showError(data.error); return; }
 
-      const { siteUrl, discoveredPages, categoriesNotFound, totalSchemasFound, totalParseErrors, averageAiScore } = data;
+      const { siteUrl, discoveredPages, discoveryMethod, totalSchemasFound, totalParseErrors, averageAiScore } = data;
       const total = totalSchemasFound + totalParseErrors;
       const fallbackScore = total === 0 ? 0 : Math.round((totalSchemasFound / total) * 100);
       const barScore = averageAiScore !== null && averageAiScore !== undefined ? averageAiScore : fallbackScore;
@@ -974,17 +999,19 @@
 
       const el = document.getElementById("results");
       el.innerHTML = `
-        ${siteScoreCard(averageAiScore, totalSchemasFound, label, siteUrl, discoveredPages.length)}
+        ${siteScoreCard(averageAiScore, totalSchemasFound, label, siteUrl, discoveredPages.length, discoveryMethod)}
         ${discoveredPages.map((p, i) => pageCard(p, i, i === 0)).join("")}
-        ${categoriesNotFound.length > 0 ? notFoundSection(categoriesNotFound) : ""}
       `;
 
       animateBar("scoreBar", barScore);
     }
 
-    function siteScoreCard(aiScore, schemaCount, label, siteUrl, pageCount) {
+    function siteScoreCard(aiScore, schemaCount, label, siteUrl, pageCount, discoveryMethod) {
       const displayVal = aiScore !== null && aiScore !== undefined ? aiScore : schemaCount;
       const displaySuffix = aiScore !== null && aiScore !== undefined ? " / 100" : ` schema${schemaCount !== 1 ? "s" : ""} found`;
+      const discoveryBadge = discoveryMethod === "sitemap"
+        ? `<span class="discovery-badge discovery-badge-sitemap">📋 Sitemap-based discovery</span>`
+        : `<span class="discovery-badge discovery-badge-links">🔗 Homepage-link discovery</span>`;
       return `
         <div class="score-card fade-in">
           <div>
@@ -992,6 +1019,7 @@
             <div class="score-value">${displayVal}<span>${displaySuffix}</span></div>
             <div class="score-meta">${esc(siteUrl)}</div>
             <div class="pages-badge">📄 ${pageCount} page${pageCount !== 1 ? "s" : ""} scanned</div>
+            ${discoveryBadge}
           </div>
           <div class="score-bar-wrap">
             <div class="score-bar-track"><div class="score-bar-fill" id="scoreBar"></div></div>
